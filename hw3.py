@@ -15,8 +15,9 @@ try:
     img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     putpixel = img.im.putpixel
 except:
-
     print('First line is invalid input')
+
+
 class vec3():
     def __init__(self, x, y, z):
         (self.x, self.y, self.z) = (float(x), float(y), float(z))
@@ -131,6 +132,11 @@ class HitPoint(object):
         self.normal = normal
         self.color = color
 
+class Light(object):
+    def __init__(self, dir, color):
+        self.dir = dir
+        self.color = color
+
 
 class Sphere(object):
     def __init__(self, center, r, color):
@@ -139,30 +145,6 @@ class Sphere(object):
         self.color = color
 
     def find_hit_point(self, ray):
-        # hit_points = []
-        # oc = self.center - ray.src()
-        # r_2 = self.r * self.r
-        # inside = True
-        # if oc.dot(oc) < r_2:
-        #     inside = False
-        # a = ray.dir().dot(ray.dir())
-        # t_c = oc.dot(ray.dir())/math.sqrt(a)
-        # if t_c < 0 and inside:
-        #     return hit_points
-        # b = ray.src() + ray.dir().scale(t_c)
-        # b = b - self.center
-        # d_2 = b.dot(b)
-        # if (d_2 > self.r * self.r) and inside:
-        #     return hit_points
-        # t_offset = math.sqrt(r_2-d_2)/math.sqrt(a)
-        # t1 = t_c + t_offset
-        # p1 = ray.point_at_t(t1)
-        # n1 = (p1 - self.center) / self.r
-        # t2 = t_c - t_offset
-        # p2 = ray.point_at_t(t2)
-        # n2 = (p2 - self.center) / self.r
-        # hit_points.append(HitPoint(ray, self, t1, p1, n1))
-        # hit_points.append(HitPoint(ray, self, t2, p2, n2))
         oc = ray.src() - self.center
         a = ray.dir().dot(ray.dir())
         b = ray.dir().dot(oc)
@@ -281,11 +263,15 @@ def sunProcess(line):
     y = float(line[2])
     z = float(line[3])
     lightDir = vec3(x , y, z)
-    light_position.append(lightDir)
+    # light_position.append(lightDir)
     if len(colorList)==0:
-        light_color.append(vec3(1,1,1))
+        color = vec3(1,1,1)
+        # light_color.append(vec3(1,1,1))
     else:
-        light_color.append(colorList[-1])
+        # light_color.append(colorList[-1])
+        color = colorList[-1]
+    light = Light(lightDir,color)
+    lights.append(light)
 
 def bulbProcess(line):
     x = float(line[1])
@@ -361,9 +347,10 @@ def aaProcess(line):
 
 object_list = []
 object_color = []
-light_position = []
-light_color = []
+# light_position = []
+# light_color = []
 colorList = []
+lights = []
 origin = vec3(0,0,0)
 f = vec3(0,0,-1)
 r = vec3(1,0,0)
@@ -424,12 +411,6 @@ def colorObject(ray):
             hit_points.extend(points)
     if hit_points:
         hit_points = list(filter(lambda x: x.t > 0.001, hit_points))
-        if len(light_position)==0:
-            l_direction = vec3(0,0,0)
-            l_color = vec3(0,0,0)
-        else:
-            l_direction = light_position[0]
-            l_color = light_color[0]
         if hit_points:
             hit_points.sort(key=lambda x: x.t)
             hit_point = hit_points[0]
@@ -437,9 +418,17 @@ def colorObject(ray):
             # print(ray.dir().dot(n))
             if ray.dir().dot(n) > 0:
                 n = n.scale(-1)
-            # print(l_direction.dot(n))
             o_color = hit_point.color
-            color = (o_color * l_color).scale(l_direction.norm().dot(n))
+            if len(lights) == 0:
+                l_direction = vec3(0, 0, 0)
+                l_color = vec3(0, 0, 0)
+                light = Light(l_direction,l_color)
+                lights.append(light)
+            color = vec3(0,0,0)
+            for light in lights:
+                l_direction = light.dir.norm()
+                l_color = light.color
+                color += (o_color * l_color).scale(l_direction.norm().dot(n))
             color = colorTrans(color.toList())
             return color
 
