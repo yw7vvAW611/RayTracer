@@ -107,8 +107,8 @@ class fishRay(object):
 
     def dir(self):
         s_x,s_y = self.scalar()
-        r = self.get_r()
-        self.d = f.scale(math.sqrt(1-r*r)) + r.scale(s_x) + u.scale(s_y)
+        r_num = self.get_r()
+        self.d = f.scale(math.sqrt(1-r_num*r_num)) + r.scale(s_x) + u.scale(s_y)
         return self.d
 
     def get_r(self):
@@ -448,10 +448,15 @@ def colorObject(ray):
 for i in range(width):
     for j in range(height):
         c = vec3(0,0,0)
+        color = None
         for a in range(num_rays):
-            # if fisheye:
-            ray = Ray(i , j)
-            color = colorObject(ray)
+            if fisheye:
+                ray = fishRay(i , j)
+                if ray.get_r() < 1:
+                    color = colorObject(ray)
+            else:
+                ray = Ray(i,j)
+                color = colorObject(ray)
             if color != None:
                 c+=color
             else:
@@ -460,6 +465,5 @@ for i in range(width):
             c/= num_rays
             c = c.toIntTuple()
             putpixel((i, j), c)
-
 
 img.save(filename)
