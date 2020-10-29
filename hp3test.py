@@ -17,28 +17,50 @@ try:
 except:
 
     print('First line is invalid input')
-
 class vec3():
     def __init__(self, x, y, z):
-        (self.x, self.y, self.z) = (x, y, z)
-    def __mul__(self, num):
-        return vec3(self.x * num, self.y * num, self.z * num)
-    def __add__(self, num):
-        return vec3(self.x + num.x, self.y + num.y, self.z + num.z)
-    def __sub__(self, num):
-        return vec3(self.x - num.x, self.y - num.y, self.z - num.z)
-    def dot(self, vec):
-        return (self.x * vec.x) + (self.y * vec.y) + (self.z * vec.z)
+        (self.x, self.y, self.z) = (float(x), float(y), float(z))
+
+    def __mul__(self, other):
+        return vec3(self.x * other.x, self.y * other.y, self.z * other.z)
+
+    def __add__(self, other):
+        return vec3(self.x + other.x, self.y + other.y, self.z + other.z)
+
+    def __sub__(self, other):
+        return vec3(self.x - other.x, self.y - other.y, self.z - other.z)
+
     def __truediv__(self, num):
         return vec3(self.x  / num, self.y / num, self.z / num)
 
+    def scale(self, other):
+        return vec3(self.x * other, self.y * other, self.z * other)
+
+    def dot(self, vec):
+        return (self.x * vec.x) + (self.y * vec.y) + (self.z * vec.z)
+
     def __abs__(self):
         return self.dot(self)
+
     def norm(self):
         mag = np.sqrt(abs(self))
-        return self * (1.0 / np.where(mag == 0, 1, mag))
-    def components(self):
+        return self.scale (1.0 / np.where(mag == 0, 1, mag))
+
+    def toTuple(self):
         return (self.x, self.y, self.z)
+
+    def toList(self):
+        return [self.x, self.y, self.z]
+
+    def cross(self, b):
+      return vec3(self.y * b.z - b.y * self.z,
+                  self.z * b.x - b.z * self.x,
+                  self.x * b.y - b.x * self.y)
+
+    def __repr__(self):
+        return "x:% s y:% s z:%s" % (self.x, self.y, self.z)
+
+
 
 class Ray(object):
     def __init__(self, x, y):
@@ -54,14 +76,14 @@ class Ray(object):
 
     def dir(self):
         s_x,s_y = self.scalar()
-        self.d = f + r * s_x + u * s_y
+        self.d = f + r.scale(s_x) + u.scale(s_y)
         return self.d
 
     def src(self):
         return self.origin
 
     def point_at_t(self, t):
-        return self.origin + self.d * t
+        return self.origin + self.d.scale(t)
 
 class HitPoint(object):
     def __init__(self, ray, obj, t, point, normal):
@@ -95,16 +117,22 @@ class Sphere(object):
             n2 = (p2 - self.center) / self.r
             hit_points.append(HitPoint(ray, self, t1, p1, n1))
             hit_points.append(HitPoint(ray, self, t2, p2, n2))
-
         return hit_points
 
+class Plane(object):
+    def __init__(self, P, normal):
+        self.P = P
+        self.normal = normal
 
-def hit_sphere(center, r, ray):
-    oc = ray.src() - center
-    a = ray.dir().dot(ray.dir())
-    b = 2 * ray.dir().dot(oc)
-    c = oc.dot(oc) - r * r
-    return b * b - 4 * a * c > 0
+    def find_hit_point(self, ray):
+        hit_points = []
+        if ray.dir().dot(self.normal) ==0:
+            return hit_points
+        t = (ray.src() - self.P).dot(self.normal) /(ray.dir().dot(self.normal))
+        if t > 0:
+            p = ray.point_at_t(t)
+            hit_points.append(HitPoint(ray, self, t, p, self.normal))
+            return hit_points
 
 def sphereProcess(line):
     index1 = float(line[1])
@@ -113,92 +141,100 @@ def sphereProcess(line):
     r = float(line[4])
     center = vec3(index1,index2, index3)
     sphere = Sphere(center, r)
-    obj_list.append(sphere)
-    # if len(colorList) == 0:
-    #     color = (0 , 0, 0)
-    # else:
-    #     color = colorList[-1]
-    # color = colorTrans(color)
-    # for i in range(width):
-    #     for j in range(height):
-    #         ray = Ray(i , j)
-    #         if hit_sphere(center , r, ray):
-    #             putpixel((i, j), color)
-    return
-
-def colorObject(obj_list, ray):
+    object_list.append(sphere)
     if len(colorList) == 0:
-        object_color = (1, 1, 1)
+        object_color.append(vec3(1, 1, 1))
     else:
-        object_color = colorList[-1]
-    object_color = colorTrans(object_color)
-    if len(light) > 0:
-        light_dir = light[-1]
+        object_color.append(colorList[-1])
+
+def planeProcess(line):
+    index1 = float(line[1])
+    index2 = float(line[2])
+    index3 = float(line[3])
+    index4 = float(line[4])
+    p = vec3(0, (index4/index2), 0)
+    normal = vec3(index1, index2, index3)
+    plane = Plane(p, normal)
+    object_list.append(plane)
+    if len(colorList) == 0:
+        object_color.append(vec3(1, 1, 1))
     else:
-        light_dir = None
-
-    for sphere in obj_list:
-        hit_points = sphere.find_hit_point(ray)
-        hit_points = list(filter(lambda x: x.t > 0.001, hit_points))
-        if hit_points:
-            hit_points.sort(key=lambda x: x.t)
-            if light_dir == None:
-                return object_color
-            # else:
-            #     n = hit_points[0].normal
-            #     t = vec3(0,0,0).dot(vec3(1,1,1))
-            #     t = t * (light_dir.dot(n))
-            #     print(t)
-            #     color = (t.x, t.y, t.z)
-            #     return color
-
-
-        # if hit_sphere(sphere.center, sphere.r, ray):
-        #     if light_color == None:
-                return object_color
-    return None
-
-class HitPoint(object):
-    def __init__(self, ray, obj, t, point, normal):
-        self.ray = ray
-        self.obj = obj
-        self.t = t
-        self.point = point
-        self.normal = normal
-
-def sunProcess(line):
-    x = float(line[1])
-    y = float(line[2])
-    z = float(line[3])
-    lightDir = vec3(x , y, z)
-    light.append(lightDir)
+        object_color.append(colorList[-1])
 
 
 def colorProcess(line):
     c = line[1:]
-    # print(c, "list")
+    color = []
     for i in c:
         t = float(i)
         if t <= 0:
             t = 0
         elif t >= 1:
             t = 1
-        colorList.append(t)
+        color.append(t)
+    r, g, b = c
+    colorList.append(vec3(r,g, b))
     return colorList
 
-def colorTrans(c):
-    color = []
-    for i in c:
-        color.append(round(i * 255))
-    return tuple(color)
+def sunProcess(line):
+    x = float(line[1])
+    y = float(line[2])
+    z = float(line[3])
+    lightDir = vec3(x , y, z)
+    light_position.append(lightDir)
+    if len(colorList)==0:
+        light_color.append(vec3(1,1,1))
+    else:
+        light_color.append(colorList[-1])
 
+def bulbProcess(line):
+    x = float(line[1])
+    y = float(line[2])
+    z = float(line[3])
+    lightDir = vec3(x , y, z)
+    light_position.append(lightDir)
+    if len(colorList)==0:
+        light_color.append(vec3(1,1,1))
+    else:
+        light_color.append(colorList[-1])
+
+def eyeProcess(line):
+    x = float(line[1])
+    y = float(line[2])
+    z = float(line[3])
+    global origin
+    origin = vec3(x,y,z)
+
+def forwardProcess(line):
+    x = float(line[1])
+    y = float(line[2])
+    z = float(line[3])
+    global f
+    f = vec3(x,y,z)
+    temp = f.cross(vec3(0,1,0))
+    # temp = f.cross(temp)
+    global r
+    r = temp.norm()
+    # r = vec3(-0.5,-3.0,-0.4).norm()
+    r = f.cross(temp).norm()
+    global  u
+    u = f.cross(r).norm()
+    # u = (f.cross(u)).cross(f).norm()
+    print(f)
+    print(r)
+    print(u)
+
+
+object_list = []
+object_color = []
+light_position = []
+light_color = []
+colorList = []
 origin = vec3(0,0,0)
 f = vec3(0,0,-1)
 r = vec3(1,0,0)
 u = vec3(0,1,0)
-colorList = []
-light = []
-obj_list = []
+
 for line in contents:
     l = line.split()
     if len(l) > 0:
@@ -209,31 +245,60 @@ for line in contents:
             colorProcess(l)
         elif keyword == 'sun':
             sunProcess(l)
-        # elif keyword == 'color':
-        #     l = colorProcess(l)
-        #     colorList.append(l)
-        # elif keyword == 'loadmv':
-        #     MV = loadmvProcess(l)
-        # elif keyword =='translate':
-        #     MV = translateProcess(l)
-        # elif keyword == 'rotatex' or keyword=='rotatey' or keyword == 'rotatez':
-        #     MV = rotatexProcess(l)
-        # elif keyword == 'scale':
-        #     scaleProcess(l)
-        # elif keyword == 'loadp':
-        #     PM = loadmvProcess(l)
-        # elif keyword == 'multmv':
-        #     MV = multmvProcess(l)
-        # elif keyword == 'trig':
-        #     trigProcess(vertexTrig,l)
-        # elif keyword =='rotate':
-        #     MV = rotateProcess(l)
+        elif keyword == "eye":
+            eyeProcess(l)
+        elif keyword == "plane":
+            planeProcess(l)
+        elif keyword == "bulb":
+            bulbProcess(l)
+        elif keyword == "forward":
+            forwardProcess(l)
+
+
+# print(light_color)
+# print(light_position)
+# print(object_color)
+# print(object_list)
+def colorTrans(c):
+    color = []
+    for i in c:
+        color.append(round(i * 255))
+    return tuple(color)
+
+def colorObject(ray):
+    for i in range(len(object_list)):
+        object = object_list[i]
+        o_color = object_color[i]
+        hit_points = object.find_hit_point(ray)
+        if hit_points:
+            hit_points = list(filter(lambda x: x.t > 0.001, hit_points))
+            if len(light_position)==0:
+                l_direction = vec3(0,0,0)
+                l_color = vec3(0,0,0)
+            else:
+                l_direction = light_position[0]
+                l_color = light_color[0]
+            if hit_points:
+                hit_points.sort(key=lambda x: x.t)
+                hit_point = hit_points[0]
+                n = hit_point.normal.norm()
+                # print(ray.dir().dot(n))
+                if ray.dir().dot(n) > 0:
+                    n = n.scale(-1)
+                # print(l_direction.dot(n))
+                color = (o_color * l_color).scale(l_direction.dot(n))
+                color = colorTrans(color.toList())
+                return color
+
+
 
 for i in range(width):
     for j in range(height):
         ray = Ray(i , j)
-        color = colorObject(obj_list, ray)
+        color = colorObject(ray)
         if color != None:
             putpixel((i, j), color)
+
+
 
 img.save(filename)
